@@ -295,6 +295,11 @@ if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
   curl -sSL "$TEMPLATES_BASE/memory/carpe-processes.md" > "$WORKSPACE/memory/carpe-processes.md" 2>/dev/null \
     && ok "memory/carpe-processes.md — Sales process, tools, workflows" \
     || warn "Failed to download carpe-processes.md"
+
+  log "Downloading internal tools guide..."
+  curl -sSL "$TEMPLATES_BASE/memory/carpe-tools.md" > "$WORKSPACE/memory/carpe-tools.md" 2>/dev/null \
+    && ok "memory/carpe-tools.md — Carpe Intel, Minerva Explorer, Carpe Closer" \
+    || warn "Failed to download carpe-tools.md"
 else
   header "Step 5: Skipping Company Knowledge (not Carpe)"
   log "No company-specific knowledge to load."

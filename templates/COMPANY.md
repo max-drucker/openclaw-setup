@@ -107,6 +107,12 @@ We monitor 100% of claims automatically. They review 5-20% manually. Same budget
 ### vs. Competitors
 Our moat: purpose-built for insurance (not general AI), 50M+ pre-built business profiles, continuous monitoring (not point-in-time), compliance-safe (no raw social media exposure to adjusters).
 
+## Internal Tools (built by Carpe)
+
+- **Carpe Intel** (carpeintel.com) — AI-powered OSINT investigation tool for claims. 4-tier automated investigations from 5-second score checks to 5-minute deep dives. Used by SIU teams. See `memory/carpe-tools.md` for details.
+- **Minerva Explorer** (minervaexplorer2026.com) — Interactive API demo tool. Look up any US business, see all Minerva scores and data. Used by sales team for prospect demos.
+- **Carpe Closer** (carpecloser.com) — RFI/RFP response platform. Upload documents, AI generates answers using product knowledge, 5-model consensus, collaborative editing.
+
 ## Integration Options
 1. **Verisk ClaimSearch** — No IT lift, plug into existing UI
 2. **Direct API** — Real-time, sub-second responses
