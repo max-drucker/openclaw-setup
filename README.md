@@ -1,52 +1,46 @@
-# OpenClaw Lightsail Setup
+# OpenClaw Setup — AWS Lightsail
 
-One-command setup for new OpenClaw instances on AWS Lightsail.
+Automated setup for OpenClaw AI assistant instances on AWS Lightsail.
 
-## Quick Start
+## Two-Phase Install
 
-SSH into your Lightsail instance and run:
-
+### Phase 1: Install Tools (run as sudo)
 ```bash
-curl -sSL https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/lightsail-setup.sh | bash
+curl -sSL https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/setup.sh | sudo bash
 ```
 
-Or download and run manually:
+Installs: OpenClaw, Node.js, gog, Supabase, GitHub CLI, Railway, Vercel, Claude Code, Codex, Salesforce CLI, pandoc, Python, utilities.
 
+### Phase 2: Configure Assistant (run as normal user)
 ```bash
-wget https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/lightsail-setup.sh
-chmod +x lightsail-setup.sh
-./lightsail-setup.sh
+curl -sSL https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/configure.sh | bash
 ```
 
-## What It Installs
+Interactive setup that asks for:
+- Person's name, email, phone, timezone, role
+- Whether they're a Carpe Data employee (loads company knowledge + role-specific personality)
+- Anthropic API key
+- WhatsApp linking
 
-| Tool | Purpose |
-|------|---------|
-| OpenClaw (latest) | AI assistant framework |
-| gog CLI | Google Workspace (Gmail, Calendar, Drive, Docs) |
-| Vercel CLI | Web app deployment |
-| Supabase CLI | Database management |
-| GitHub CLI (gh) | GitHub operations |
-| Claude Code | AI coding agent |
-| Salesforce CLI | CRM integration |
-| Python 3 + pip | Custom scripts |
-| Utilities | jq, tmux, htop, tree |
+Creates: SOUL.md, USER.md, AGENTS.md, MEMORY.md, HEARTBEAT.md, openclaw.json, and (for Carpe employees) COMPANY.md + product/team/process knowledge files.
 
-## Prerequisites
+## Templates
 
-- AWS Lightsail instance (Ubuntu, 2GB+ RAM)
-- OpenClaw blueprint selected, OR Node.js 20+ installed
-- User with sudo access (default `ubuntu` user works)
+| File | Description |
+|------|-------------|
+| `templates/COMPANY.md` | Carpe Data company overview |
+| `templates/memory/carpe-products.md` | Product deep dive (Minerva + ClaimsX) |
+| `templates/memory/carpe-team.md` | Leadership, org chart, routing |
+| `templates/memory/carpe-processes.md` | Sales process, tools, workflows |
+| `templates/souls/carpe-sales.md` | Sales role personality |
+| `templates/souls/carpe-engineering.md` | Engineering role personality |
+| `templates/souls/carpe-executive.md` | Executive role personality |
+| `templates/souls/carpe-ops.md` | Operations role personality |
+| `templates/AGENTS.md` | Workspace conventions |
+| `templates/HEARTBEAT.md` | Periodic check config |
+| `templates/MEMORY.md` | Memory starter template |
 
-## After Setup
+## Docs
 
-1. `openclaw status` — verify it's running
-2. `openclaw auth add anthropic` — add your API key
-3. Edit `~/.openclaw/openclaw.json` — configure channels
-4. `openclaw whatsapp link` — connect WhatsApp
-5. Edit `~/.openclaw/workspace/SOUL.md` — give it personality
-
-## Support
-
-- Docs: https://docs.openclaw.ai
-- Discord: https://discord.com/invite/clawd
+- [Friends & Family Guide](https://docs.google.com/document/d/1NnazvWkDrvt7v44m1KND81yhRePxnWD-14ap0MD-teQ) — End-user setup walkthrough
+- [DevOps Guide](https://docs.google.com/document/d/11woADLWa0dKZ5xzs1W7ckhsabZEyxbqhKuRTutgUW1Y) — Provisioning runbook for Joe
