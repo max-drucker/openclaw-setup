@@ -80,7 +80,17 @@ curl -Lo railway.deb https://github.com/railwayapp/cli/releases/download/v4.31.0
   && ok "Railway $(railway --version 2>/dev/null || echo 'installed')" \
   || fail "Railway CLI"
 
-header "Step 8/10: npm Global Tools"
+header "Step 8/11: AWS CLI v2"
+log "Installing AWS CLI..."
+cd /tmp
+curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscli.zip \
+  && unzip -qo awscli.zip \
+  && ./aws/install --update 2>/dev/null \
+  && rm -rf awscli.zip aws/ \
+  && ok "AWS CLI $(aws --version 2>/dev/null | awk '{print $1}' || echo 'installed')" \
+  || fail "AWS CLI"
+
+header "Step 9/11: npm Global Tools"
 log "Installing Vercel..."
 npm i -g vercel && ok "Vercel" || fail "Vercel"
 
@@ -96,14 +106,14 @@ npm i -g @openai/codex && ok "OpenAI Codex" || fail "OpenAI Codex"
 log "Installing md-to-pdf..."
 npm i -g md-to-pdf && ok "md-to-pdf" || fail "md-to-pdf"
 
-header "Step 9/10: Python & System Utilities"
+header "Step 10/11: Python & System Utilities"
 apt install -y python3-pip python3-venv && ok "Python 3 + pip + venv" || fail "Python tools"
 apt install -y jq curl wget unzip git htop tmux tree pandoc && ok "System utilities + pandoc" || fail "System utilities"
 
-header "Step 10/10: Verify Installation"
+header "Step 11/11: Verify Installation"
 echo ""
 ALL_GOOD=true
-for cmd in openclaw node npm gog vercel supabase gh railway claude sf codex pandoc python3 jq git tmux; do
+for cmd in openclaw node npm gog vercel supabase gh railway claude sf codex aws pandoc python3 jq git tmux; do
   if command -v $cmd &>/dev/null; then
     VER=$($cmd --version 2>/dev/null | head -1 || echo "ok")
     echo -e "  ${GREEN}✅${NC} $cmd — $VER"

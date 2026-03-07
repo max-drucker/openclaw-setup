@@ -152,6 +152,25 @@ if [[ "$ADD_OPENROUTER" =~ ^[Yy] ]]; then
   echo ""
 fi
 
+prompt "Configure AWS CLI now? (y/n) — needed for managing Lightsail/EC2 instances"
+read -r ADD_AWS
+echo ""
+
+if [[ "$ADD_AWS" =~ ^[Yy] ]]; then
+  echo -e "  You'll need your AWS Access Key ID and Secret Access Key."
+  echo -e "  Get them from: ${CYAN}https://console.aws.amazon.com/iam/home#/security_credentials${NC}"
+  echo -e "  (IAM → Users → your user → Security credentials → Create access key)"
+  echo ""
+  aws configure
+  echo ""
+  if aws sts get-caller-identity &>/dev/null; then
+    ok "AWS CLI configured — $(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null)"
+  else
+    warn "AWS credentials not verified — you can run 'aws configure' later"
+  fi
+  echo ""
+fi
+
 ADD_KEY="$ADD_ANTHROPIC"
 
 # ============================================================
@@ -322,6 +341,11 @@ if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
   curl -sSL "$TEMPLATES_BASE/memory/carpe-tools.md" > "$WORKSPACE/memory/carpe-tools.md" 2>/dev/null \
     && ok "memory/carpe-tools.md — Carpe Intel, Minerva Explorer, Carpe Closer" \
     || warn "Failed to download carpe-tools.md"
+
+  log "Downloading AWS CLI reference..."
+  curl -sSL "$TEMPLATES_BASE/memory/aws-commands.md" > "$WORKSPACE/memory/aws-commands.md" 2>/dev/null \
+    && ok "memory/aws-commands.md — Lightsail, EC2, S3, SSM commands" \
+    || warn "Failed to download aws-commands.md"
 else
   header "Step 5: Skipping Company Knowledge (not Carpe)"
   log "No company-specific knowledge to load."
