@@ -119,18 +119,40 @@ if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
 fi
 
 # ============================================================
-header "Step 3: API Key"
+header "Step 3: AI Provider Keys"
 # ============================================================
 
-prompt "Do you want to add the Anthropic API key now? (y/n)"
-read -r ADD_KEY
+echo -e "  Your assistant can use multiple AI providers."
+echo -e "  ${BOLD}Anthropic${NC} (Claude) is the primary — required."
+echo -e "  ${BOLD}OpenRouter${NC} gives access to 100+ models (GPT, Gemini, Kimi, etc.) — recommended."
 echo ""
 
-if [[ "$ADD_KEY" =~ ^[Yy] ]]; then
-  log "Running: openclaw auth add anthropic"
-  openclaw auth add anthropic
+prompt "Add Anthropic API key now? (y/n) — get one at console.anthropic.com"
+read -r ADD_ANTHROPIC
+echo ""
+
+if [[ "$ADD_ANTHROPIC" =~ ^[Yy] ]]; then
+  log "Running: openclaw models auth add (select Anthropic)"
+  openclaw models auth add
   echo ""
 fi
+
+prompt "Add OpenRouter API key now? (y/n) — get one at openrouter.ai/keys"
+read -r ADD_OPENROUTER
+echo ""
+
+if [[ "$ADD_OPENROUTER" =~ ^[Yy] ]]; then
+  prompt "Paste your OpenRouter API key (starts with sk-or-):"
+  read -r OR_KEY
+  if [[ -n "$OR_KEY" ]]; then
+    echo "$OR_KEY" | openclaw models auth paste-token --provider openrouter --profile-id openrouter:default 2>/dev/null \
+      && ok "OpenRouter key saved" \
+      || warn "Failed to save via CLI — you can add it manually to openclaw.json later"
+  fi
+  echo ""
+fi
+
+ADD_KEY="$ADD_ANTHROPIC"
 
 # ============================================================
 header "Step 4: Creating Workspace"
@@ -318,7 +340,13 @@ mkdir -p "$(dirname "$CONFIG")"
 if [ ! -f "$CONFIG" ] || [ "$(wc -c < "$CONFIG")" -lt 50 ]; then
   cat > "$CONFIG" << CONFEOF
 {
-  "model": "anthropic/claude-opus-4-6",
+  "model": {
+    "primary": "anthropic/claude-opus-4-6",
+    "fallbacks": [
+      "openrouter/anthropic/claude-sonnet-4.6",
+      "openrouter/openai/gpt-5.2"
+    ]
+  },
   "timezone": "$TIMEZONE",
   "channels": {
     "whatsapp": {
@@ -339,7 +367,7 @@ if [ ! -f "$CONFIG" ] || [ "$(wc -c < "$CONFIG")" -lt 50 ]; then
   }
 }
 CONFEOF
-  ok "openclaw.json (with WhatsApp for $PHONE)"
+  ok "openclaw.json (Claude primary, OpenRouter fallbacks, WhatsApp for $PHONE)"
 else
   warn "openclaw.json already exists — not overwriting"
   log "You may need to manually add WhatsApp config for $PHONE"
@@ -385,7 +413,7 @@ echo -e "  ${BOLD}Person:${NC}      $FULL_NAME ($FIRST_NAME)"
 echo -e "  ${BOLD}Email:${NC}       $EMAIL"
 echo -e "  ${BOLD}Phone:${NC}       $PHONE"
 echo -e "  ${BOLD}Timezone:${NC}    $TIMEZONE"
-echo -e "  ${BOLD}Model:${NC}       Claude Opus 4.6"
+echo -e "  ${BOLD}Model:${NC}       Claude Opus 4.6 (primary) + OpenRouter fallbacks"
 
 if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
   echo -e "  ${BOLD}Company:${NC}     Carpe Data"
