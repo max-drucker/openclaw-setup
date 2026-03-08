@@ -463,6 +463,9 @@ else
 fi
 echo ""
 
+# Set gateway mode (required for startup)
+openclaw config set gateway.mode local 2>/dev/null && ok "Gateway mode: local" || true
+
 log "Installing and starting gateway service..."
 openclaw gateway install 2>/dev/null && ok "Gateway service installed" || warn "Gateway install failed — try: openclaw gateway install"
 openclaw gateway start 2>/dev/null && ok "Gateway started" || warn "Gateway may already be running — try: openclaw gateway restart"
