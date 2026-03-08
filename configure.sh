@@ -450,7 +450,21 @@ ok "Heartbeat: every 30 minutes"
 header "Step 8: Start OpenClaw"
 # ============================================================
 
-log "Starting gateway..."
+prompt "Set a gateway auth token (password for Control UI access):"
+read -r GW_TOKEN
+if [[ -n "$GW_TOKEN" ]]; then
+  openclaw config set gateway.auth.token "$GW_TOKEN" 2>/dev/null \
+    && ok "Gateway token set" \
+    || warn "Couldn't set token — run: openclaw config set gateway.auth.token 'your-token'"
+else
+  GW_TOKEN="openclaw-$(date +%s | tail -c 6)"
+  openclaw config set gateway.auth.token "$GW_TOKEN" 2>/dev/null
+  warn "No token entered — auto-generated: $GW_TOKEN"
+fi
+echo ""
+
+log "Installing and starting gateway service..."
+openclaw gateway install 2>/dev/null && ok "Gateway service installed" || warn "Gateway install failed — try: openclaw gateway install"
 openclaw gateway start 2>/dev/null && ok "Gateway started" || warn "Gateway may already be running — try: openclaw gateway restart"
 
 # Quick verification
@@ -458,7 +472,7 @@ sleep 2
 if openclaw status 2>/dev/null | grep -qi "running\|online"; then
   ok "Gateway is running"
 else
-  warn "Gateway status unclear — check: openclaw status"
+  warn "Gateway status unclear — check: openclaw gateway start"
 fi
 
 # ============================================================
