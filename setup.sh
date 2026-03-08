@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
-# OpenClaw Lightsail Setup Script
-# Installs all tools on a fresh Ubuntu instance
-# Tested: March 2026, AWS Lightsail Ubuntu 22.04 LTS
+# OpenClaw EC2 Setup Script
+# Installs all tools on a fresh Ubuntu 24.04 LTS instance
+# Tested: March 7-8, 2026 on AWS EC2 (t3.medium, Ubuntu 24.04)
 #
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/setup.sh | sudo bash
@@ -35,10 +35,10 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-header "Step 1/10: System Update"
+header "Step 1/11: System Update"
 apt update && apt upgrade -y && ok "System updated" || fail "System update"
 
-header "Step 2/10: Node.js 22"
+header "Step 2/11: Node.js 22"
 if command -v node &>/dev/null && node --version | grep -q "v22\|v23\|v24\|v25"; then
   warn "Node.js already installed: $(node --version) — skipping"
   ok "Node.js $(node --version)"
@@ -46,10 +46,10 @@ else
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs && ok "Node.js $(node --version)" || fail "Node.js"
 fi
 
-header "Step 3/10: OpenClaw"
+header "Step 3/11: OpenClaw"
 npm install -g openclaw@latest && ok "OpenClaw $(openclaw --version 2>/dev/null || echo 'installed')" || fail "OpenClaw"
 
-header "Step 4/10: Google Workspace CLI (gog)"
+header "Step 4/11: Google Workspace CLI (gog)"
 cd /tmp
 curl -Lo gog.tar.gz https://github.com/steipete/gogcli/releases/download/v0.11.0/gogcli_0.11.0_linux_amd64.tar.gz \
   && tar xzf gog.tar.gz -C /usr/local/bin \
@@ -57,7 +57,7 @@ curl -Lo gog.tar.gz https://github.com/steipete/gogcli/releases/download/v0.11.0
   && ok "gog $(gog --version 2>/dev/null | head -1 || echo 'installed')" \
   || fail "gog CLI"
 
-header "Step 5/10: Supabase CLI"
+header "Step 5/11: Supabase CLI"
 cd /tmp
 curl -Lo supabase.deb https://github.com/supabase/cli/releases/download/v2.75.0/supabase_2.75.0_linux_amd64.deb \
   && dpkg -i supabase.deb \
@@ -65,14 +65,14 @@ curl -Lo supabase.deb https://github.com/supabase/cli/releases/download/v2.75.0/
   && ok "Supabase $(supabase --version 2>/dev/null || echo 'installed')" \
   || fail "Supabase CLI"
 
-header "Step 6/10: GitHub CLI"
+header "Step 6/11: GitHub CLI"
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
   && apt update && apt install -y gh \
   && ok "GitHub CLI $(gh --version 2>/dev/null | head -1 || echo 'installed')" \
   || fail "GitHub CLI"
 
-header "Step 7/10: Railway CLI"
+header "Step 7/11: Railway CLI"
 cd /tmp
 curl -Lo railway.deb https://github.com/railwayapp/cli/releases/download/v4.31.0/railway-v4.31.0-amd64.deb \
   && dpkg -i railway.deb \
@@ -80,7 +80,10 @@ curl -Lo railway.deb https://github.com/railwayapp/cli/releases/download/v4.31.0
   && ok "Railway $(railway --version 2>/dev/null || echo 'installed')" \
   || fail "Railway CLI"
 
-header "Step 8/11: AWS CLI v2"
+header "Step 8/11: System Utilities (needed by later steps)"
+apt install -y jq curl wget unzip git htop tmux tree pandoc && ok "System utilities + pandoc" || fail "System utilities"
+
+header "Step 9/11: AWS CLI v2"
 log "Installing AWS CLI..."
 cd /tmp
 curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscli.zip \
@@ -90,7 +93,7 @@ curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscli.z
   && ok "AWS CLI $(aws --version 2>/dev/null | awk '{print $1}' || echo 'installed')" \
   || fail "AWS CLI"
 
-header "Step 9/11: npm Global Tools"
+header "Step 10/11: npm Global Tools"
 log "Installing Vercel..."
 npm i -g vercel && ok "Vercel" || fail "Vercel"
 
@@ -106,11 +109,10 @@ npm i -g @openai/codex && ok "OpenAI Codex" || fail "OpenAI Codex"
 log "Installing md-to-pdf..."
 npm i -g md-to-pdf && ok "md-to-pdf" || fail "md-to-pdf"
 
-header "Step 10/11: Python & System Utilities"
+header "Step 11/11: Python & Verify"
 apt install -y python3-pip python3-venv && ok "Python 3 + pip + venv" || fail "Python tools"
-apt install -y jq curl wget unzip git htop tmux tree pandoc && ok "System utilities + pandoc" || fail "System utilities"
 
-header "Step 11/11: Verify Installation"
+log "Verifying installation..."
 echo ""
 ALL_GOOD=true
 for cmd in openclaw node npm gog vercel supabase gh railway claude sf codex aws pandoc python3 jq git tmux; do
