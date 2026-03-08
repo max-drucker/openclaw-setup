@@ -2,10 +2,6 @@
 
 Automated setup for OpenClaw AI assistant instances on AWS EC2 (Ubuntu 24.04 LTS).
 
-## Why EC2 Instead of Lightsail?
-
-We originally used Lightsail, but the OpenClaw blueprint ships an ancient version with Bedrock-first config. Upgrading breaks things. Plain Ubuntu + this setup script = clean install, latest version, everything works.
-
 ## Recommended Instance
 
 - **Type:** `t3.medium` (4GB RAM, 2 vCPU)
@@ -61,9 +57,9 @@ openclaw config set gateway.controlUi.allowedOrigins '["*"]'
 openclaw config set agents.defaults.model '{"primary":"openrouter/anthropic/claude-opus-4.6"}'
 ```
 
-## Known Bugs
+## Known Issues
 
-- **`paste-token` strips OpenRouter key prefix:** The `sk-or-v1-` prefix gets stripped when writing to `auth-profiles.json`. Must verify and fix manually.
+- **`paste-token` strips OpenRouter key prefix:** The `sk-or-v1-` prefix gets stripped when writing to `auth-profiles.json`. Verify and fix manually after running `paste-token`.
 - **`openclaw tui`** is the interactive test command (not `openclaw chat`)
 - **Control UI** is on port **18789** (not 3000)
 
