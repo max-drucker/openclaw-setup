@@ -415,14 +415,14 @@ header "Step 7: OpenClaw Configuration"
 
 log "Configuring OpenClaw via CLI..."
 
-# Set model
+# Set model (agents.defaults.model takes a JSON object with "primary" key)
 openclaw config set agents.defaults.model "{\"primary\":\"$MODEL_ID\"}" 2>/dev/null \
   && ok "Model: $MODEL_NAME" \
   || warn "Couldn't set model via CLI — may need manual config"
 
 # Set gateway for remote access
 openclaw config set gateway.bind lan 2>/dev/null && ok "Gateway: LAN access enabled" || true
-openclaw config set gateway.controlUi.allowedOrigins '["*"]' 2>/dev/null && ok "Control UI: open" || true
+openclaw config set gateway.controlUi.allowedOrigins '["*"]' 2>/dev/null && ok "Control UI: open origins" || true
 
 # Set WhatsApp config
 if [[ -n "$PHONE" ]]; then
@@ -433,9 +433,8 @@ if [[ -n "$PHONE" ]]; then
   ok "WhatsApp: configured for $PHONE"
 fi
 
-# Set heartbeat
-openclaw config set heartbeat.enabled true 2>/dev/null || true
-openclaw config set heartbeat.intervalMinutes 30 2>/dev/null || true
+# Set heartbeat (path: agents.defaults.heartbeat.every, value is duration string)
+openclaw config set agents.defaults.heartbeat.every 30m 2>/dev/null || true
 ok "Heartbeat: every 30 minutes"
 
 # ============================================================
@@ -470,9 +469,9 @@ if [[ "$LINK_WA" =~ ^[Yy] ]]; then
   echo ""
   echo -e "${YELLOW}QR code expires in ~60 seconds. Ready? Press Enter.${NC}"
   read -r
-  openclaw whatsapp qr 2>/dev/null || openclaw whatsapp link 2>/dev/null || warn "WhatsApp linking command not found — check: openclaw whatsapp --help"
+  openclaw channels login --channel whatsapp 2>/dev/null || warn "WhatsApp linking failed — try: openclaw channels login --channel whatsapp"
 else
-  log "Skipping WhatsApp link. Run later with: openclaw whatsapp qr"
+  log "Skipping WhatsApp link. Run later with: openclaw channels login --channel whatsapp"
 fi
 
 # ============================================================
@@ -510,7 +509,7 @@ fi
 echo ""
 echo -e "${BOLD}What's left to do:${NC}"
 if [[ ! "$LINK_WA" =~ ^[Yy] ]]; then
-  echo -e "  • Link WhatsApp: ${CYAN}openclaw whatsapp qr${NC}"
+  echo -e "  • Link WhatsApp: ${CYAN}openclaw channels login --channel whatsapp${NC}"
 fi
 if [[ "$PROVIDER_SET" != "true" ]]; then
   echo -e "  • Add API key: ${CYAN}openclaw models auth add${NC}"
