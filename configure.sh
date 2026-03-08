@@ -164,8 +164,11 @@ echo ""
 
 if [[ "$ADD_ANTHROPIC" =~ ^[Yy] ]]; then
   log "Running: openclaw models auth add"
-  openclaw models auth add
-  PROVIDER_SET=true
+  if openclaw models auth add; then
+    PROVIDER_SET=true
+  else
+    warn "Anthropic auth setup didn't complete — try OpenRouter instead"
+  fi
   echo ""
 fi
 
