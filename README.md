@@ -26,8 +26,9 @@ Installs: OpenClaw, Node.js, gog, Supabase, GitHub CLI, Railway, Vercel, Claude 
 
 ### Phase 2: Configure Assistant (run as normal user)
 ```bash
-curl -sSL https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/configure.sh | bash
+curl -Lo configure.sh https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/configure.sh && bash configure.sh
 ```
+⚠️ **Must download first** — this script is interactive (asks for name, email, API keys). `curl | bash` won't work.
 
 Interactive setup that asks for:
 - Person's name, email, phone, timezone, role

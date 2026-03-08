@@ -4,15 +4,24 @@
 # Sets up the assistant's workspace, personality, and config
 # Run AFTER setup.sh (which installs all tools)
 #
-# Usage:
-#   curl -sSL https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/configure.sh | bash
+# Usage (MUST download first — this script is interactive):
+#   curl -Lo configure.sh https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/configure.sh && bash configure.sh
 #
-# Or download first:
-#   curl -Lo configure.sh https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/configure.sh
-#   bash configure.sh
-#
+# ⚠️  Do NOT pipe through curl: "curl ... | bash" breaks interactive prompts!
 # NOTE: Do NOT run with sudo — this configures the user's home directory
 # ============================================================
+
+# Detect if stdin is not a terminal (piped through curl)
+if [ ! -t 0 ]; then
+  echo ""
+  echo -e "\033[0;31m❌ ERROR: This script is interactive and cannot be piped through curl.\033[0m"
+  echo ""
+  echo "  Run this instead:"
+  echo ""
+  echo "    curl -Lo configure.sh https://raw.githubusercontent.com/max-drucker/openclaw-setup/main/configure.sh && bash configure.sh"
+  echo ""
+  exit 1
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
