@@ -180,48 +180,58 @@ if [[ "$ADD_OPENROUTER" =~ ^[Yy] ]]; then
   prompt "Paste your OpenRouter API key (starts with sk-or-v1-):"
   read -r OR_KEY
   if [[ -n "$OR_KEY" ]]; then
-    # Write directly to models.json to avoid the paste-token prefix-stripping bug
+    # Write to auth-profiles.json (the file OC actually reads for API keys)
     mkdir -p "$AGENT_DIR"
-    MODELS_FILE="$AGENT_DIR/models.json"
+    AUTH_FILE="$AGENT_DIR/auth-profiles.json"
 
-    # If using OpenRouter as primary (no Anthropic key), set it as the model provider
     if [[ "$PROVIDER_SET" != "true" ]]; then
-      # OpenRouter is the only provider — use it for the primary model
+      # OpenRouter is the only provider — set model prefix and write auth
       OR_MODEL="openrouter/${MODEL_ID#anthropic/}"
-      cat > "$MODELS_FILE" << MODEOF
+      cat > "$AUTH_FILE" << AUTHEOF
 {
-  "model": "$OR_MODEL",
-  "providers": {
-    "openrouter": {
-      "apiKey": "$OR_KEY"
+  "version": 1,
+  "profiles": {
+    "openrouter:default": {
+      "type": "api_key",
+      "provider": "openrouter",
+      "key": "$OR_KEY"
     }
+  },
+  "lastGood": {
+    "openrouter": "openrouter:default"
   }
 }
-MODEOF
+AUTHEOF
       MODEL_ID="$OR_MODEL"
-      ok "OpenRouter key saved + set as primary provider"
+      ok "OpenRouter key saved to auth-profiles.json + set as primary provider"
     else
-      # Anthropic is primary, OpenRouter is fallback — just add the key
-      if [ -f "$MODELS_FILE" ]; then
-        # Merge into existing
+      # Anthropic is primary, add OpenRouter as additional provider
+      if [ -f "$AUTH_FILE" ]; then
         python3 -c "
 import json
-with open('$MODELS_FILE') as f:
+with open('$AUTH_FILE') as f:
     data = json.load(f)
-data.setdefault('providers', {})['openrouter'] = {'apiKey': '$OR_KEY'}
-with open('$MODELS_FILE', 'w') as f:
+data.setdefault('profiles', {})['openrouter:default'] = {'type': 'api_key', 'provider': 'openrouter', 'key': '$OR_KEY'}
+data.setdefault('lastGood', {})['openrouter'] = 'openrouter:default'
+with open('$AUTH_FILE', 'w') as f:
     json.dump(data, f, indent=2)
-" 2>/dev/null && ok "OpenRouter key added as fallback provider" || warn "Couldn't merge — add OpenRouter key manually"
+" 2>/dev/null && ok "OpenRouter key added to auth-profiles.json" || warn "Couldn't merge — add OpenRouter key manually"
       else
-        cat > "$MODELS_FILE" << MODEOF
+        cat > "$AUTH_FILE" << AUTHEOF
 {
-  "providers": {
-    "openrouter": {
-      "apiKey": "$OR_KEY"
+  "version": 1,
+  "profiles": {
+    "openrouter:default": {
+      "type": "api_key",
+      "provider": "openrouter",
+      "key": "$OR_KEY"
     }
+  },
+  "lastGood": {
+    "openrouter": "openrouter:default"
   }
 }
-MODEOF
+AUTHEOF
         ok "OpenRouter key saved"
       fi
     fi
