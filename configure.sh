@@ -124,15 +124,15 @@ header "Step 3: AI Model Selection"
 # ============================================================
 
 echo -e "  Choose the AI model for this assistant:"
-echo -e "    ${BOLD}1${NC} — Claude Sonnet 4.6 (fast, cost-effective — recommended for most users)"
-echo -e "    ${BOLD}2${NC} — Claude Opus 4.6 (most capable, higher cost — for power users)"
+echo -e "    ${BOLD}1${NC} — Claude Opus 4.6 (most capable — recommended)"
+echo -e "    ${BOLD}2${NC} — Claude Sonnet 4.6 (faster, lower cost)"
 echo ""
 prompt "Enter 1 or 2 (default: 1):"
 read -r MODEL_CHOICE
 
 case "$MODEL_CHOICE" in
-  2) MODEL_ID="anthropic/claude-opus-4-6"; MODEL_NAME="Claude Opus 4.6" ;;
-  *) MODEL_ID="anthropic/claude-sonnet-4-6"; MODEL_NAME="Claude Sonnet 4.6" ;;
+  2) MODEL_ID="anthropic/claude-sonnet-4-6"; MODEL_NAME="Claude Sonnet 4.6" ;;
+  *) MODEL_ID="anthropic/claude-opus-4-6"; MODEL_NAME="Claude Opus 4.6" ;;
 esac
 ok "Selected: $MODEL_NAME"
 echo ""
@@ -475,6 +475,52 @@ else
 fi
 
 # ============================================================
+header "Step 10: Link Slack (Optional)"
+# ============================================================
+
+echo -e "  To connect Slack, you need a Slack App with:"
+echo -e "    • ${BOLD}Bot Token${NC} (xoxb-...) — from OAuth & Permissions"
+echo -e "    • ${BOLD}App Token${NC} (xapp-...) — from Basic Information → App-Level Tokens"
+echo ""
+echo -e "  Create a Slack App at: ${CYAN}https://api.slack.com/apps${NC}"
+echo -e "  Required scopes: chat:write, channels:read, channels:history, users:read"
+echo -e "  App token scope: connections:write (for Socket Mode)"
+echo ""
+
+prompt "Add Slack connection now? (y/n)"
+read -r ADD_SLACK
+echo ""
+
+if [[ "$ADD_SLACK" =~ ^[Yy] ]]; then
+  prompt "Paste your Slack Bot Token (xoxb-...):"
+  read -r SLACK_BOT_TOKEN
+  echo ""
+
+  prompt "Paste your Slack App Token (xapp-...):"
+  read -r SLACK_APP_TOKEN
+  echo ""
+
+  if [[ -n "$SLACK_BOT_TOKEN" && -n "$SLACK_APP_TOKEN" ]]; then
+    openclaw channels add --channel slack --bot-token "$SLACK_BOT_TOKEN" --app-token "$SLACK_APP_TOKEN" 2>/dev/null \
+      && ok "Slack connected" \
+      || warn "Slack setup failed — try: openclaw channels add --channel slack --bot-token <token> --app-token <token>"
+
+    # Configure Slack DM policy
+    openclaw config set channels.slack.enabled true 2>/dev/null || true
+    openclaw config set channels.slack.dmPolicy allowlist 2>/dev/null || true
+    if [[ -n "$SLACK_USER_ID" ]]; then
+      openclaw config set channels.slack.allowFrom "[\"$SLACK_USER_ID\"]" 2>/dev/null || true
+    fi
+    ok "Slack: configured"
+  else
+    warn "Missing tokens — skipping Slack setup"
+  fi
+else
+  log "Skipping Slack. Run later with:"
+  echo -e "    ${CYAN}openclaw channels add --channel slack --bot-token <xoxb-...> --app-token <xapp-...>${NC}"
+fi
+
+# ============================================================
 header "🎉 Configuration Complete!"
 # ============================================================
 
@@ -511,13 +557,16 @@ echo -e "${BOLD}What's left to do:${NC}"
 if [[ ! "$LINK_WA" =~ ^[Yy] ]]; then
   echo -e "  • Link WhatsApp: ${CYAN}openclaw channels login --channel whatsapp${NC}"
 fi
+if [[ ! "$ADD_SLACK" =~ ^[Yy] ]]; then
+  echo -e "  • Link Slack: ${CYAN}openclaw channels add --channel slack --bot-token <xoxb-...> --app-token <xapp-...>${NC}"
+fi
 if [[ "$PROVIDER_SET" != "true" ]]; then
   echo -e "  • Add API key: ${CYAN}openclaw models auth add${NC}"
 fi
 echo -e "  • Set gateway token: ${CYAN}openclaw config set gateway.auth.token 'your-secure-token'${NC}"
 echo -e "  • Connect Google: ${CYAN}gog auth add $EMAIL --services all --manual${NC}"
 echo -e "  • Test via interactive chat: ${CYAN}openclaw tui${NC}"
-echo -e "  • Test via WhatsApp: Send a message — \"Hello! What can you do?\""
+echo -e "  • Test via WhatsApp or Slack: Send a message — \"Hello! What can you do?\""
 echo ""
 echo -e "  Control UI: ${CYAN}http://<your-ip>:18789${NC}"
 echo -e "  Full guide: ${CYAN}https://docs.google.com/document/d/1NnazvWkDrvt7v44m1KND81yhRePxnWD-14ap0MD-teQ${NC}"
