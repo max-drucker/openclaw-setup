@@ -38,19 +38,20 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 WORKSPACE="$HOME/.openclaw/workspace"
-CONFIG="$HOME/.openclaw/openclaw.json"
+AGENT_DIR="$HOME/.openclaw/agents/main/agent"
 
 # ============================================================
 header "🤖 OpenClaw Assistant Configuration"
 # ============================================================
 
 echo ""
-echo -e "${BOLD}This script will set up your AI assistant's personality,"
-echo -e "knowledge base, and WhatsApp connection.${NC}"
+echo -e "${BOLD}This script sets up the assistant's personality,"
+echo -e "knowledge base, and messaging connection.${NC}"
 echo ""
 echo -e "You'll need:"
 echo -e "  • The person's name, email, phone number, and timezone"
 echo -e "  • An Anthropic API key (from console.anthropic.com)"
+echo -e "    OR an OpenRouter API key (from openrouter.ai/keys)"
 echo ""
 
 # ============================================================
@@ -119,72 +120,125 @@ if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
 fi
 
 # ============================================================
-header "Step 3: AI Provider Keys"
+header "Step 3: AI Model Selection"
 # ============================================================
 
-echo -e "  Your assistant can use multiple AI providers."
-echo -e "  ${BOLD}Anthropic${NC} (Claude) is the primary — required."
-echo -e "  ${BOLD}OpenRouter${NC} gives access to 100+ models (GPT, Gemini, Kimi, etc.) — recommended."
+echo -e "  Choose the AI model for this assistant:"
+echo -e "    ${BOLD}1${NC} — Claude Sonnet 4.6 (fast, cost-effective — recommended for most users)"
+echo -e "    ${BOLD}2${NC} — Claude Opus 4.6 (most capable, higher cost — for power users)"
+echo ""
+prompt "Enter 1 or 2 (default: 1):"
+read -r MODEL_CHOICE
+
+case "$MODEL_CHOICE" in
+  2) MODEL_ID="anthropic/claude-opus-4-6"; MODEL_NAME="Claude Opus 4.6" ;;
+  *) MODEL_ID="anthropic/claude-sonnet-4-6"; MODEL_NAME="Claude Sonnet 4.6" ;;
+esac
+ok "Selected: $MODEL_NAME"
 echo ""
 
-prompt "Add Anthropic API key now? (y/n) — get one at console.anthropic.com"
+# ============================================================
+header "Step 4: AI Provider Keys"
+# ============================================================
+
+echo -e "  Your assistant needs an AI provider API key."
+echo -e "  ${BOLD}Option A: Anthropic${NC} — Direct from Anthropic (console.anthropic.com)"
+echo -e "  ${BOLD}Option B: OpenRouter${NC} — Access 100+ models including Claude (openrouter.ai/keys)"
+echo -e "  You need at least one."
+echo ""
+
+PROVIDER_SET=false
+
+prompt "Add Anthropic API key? (y/n)"
 read -r ADD_ANTHROPIC
 echo ""
 
 if [[ "$ADD_ANTHROPIC" =~ ^[Yy] ]]; then
-  log "Running: openclaw models auth add (select Anthropic)"
+  log "Running: openclaw models auth add"
   openclaw models auth add
+  PROVIDER_SET=true
   echo ""
 fi
 
-prompt "Add OpenRouter API key now? (y/n) — get one at openrouter.ai/keys"
+prompt "Add OpenRouter API key? (y/n)"
 read -r ADD_OPENROUTER
 echo ""
 
 if [[ "$ADD_OPENROUTER" =~ ^[Yy] ]]; then
-  prompt "Paste your OpenRouter API key (starts with sk-or-):"
+  prompt "Paste your OpenRouter API key (starts with sk-or-v1-):"
   read -r OR_KEY
   if [[ -n "$OR_KEY" ]]; then
-    echo "$OR_KEY" | openclaw models auth paste-token --provider openrouter --profile-id openrouter:default 2>/dev/null \
-      && ok "OpenRouter key saved" \
-      || warn "Failed to save via CLI — you can add it manually to openclaw.json later"
+    # Write directly to models.json to avoid the paste-token prefix-stripping bug
+    mkdir -p "$AGENT_DIR"
+    MODELS_FILE="$AGENT_DIR/models.json"
+
+    # If using OpenRouter as primary (no Anthropic key), set it as the model provider
+    if [[ "$PROVIDER_SET" != "true" ]]; then
+      # OpenRouter is the only provider — use it for the primary model
+      OR_MODEL="openrouter/${MODEL_ID#anthropic/}"
+      cat > "$MODELS_FILE" << MODEOF
+{
+  "model": "$OR_MODEL",
+  "providers": {
+    "openrouter": {
+      "apiKey": "$OR_KEY"
+    }
+  }
+}
+MODEOF
+      MODEL_ID="$OR_MODEL"
+      ok "OpenRouter key saved + set as primary provider"
+    else
+      # Anthropic is primary, OpenRouter is fallback — just add the key
+      if [ -f "$MODELS_FILE" ]; then
+        # Merge into existing
+        python3 -c "
+import json
+with open('$MODELS_FILE') as f:
+    data = json.load(f)
+data.setdefault('providers', {})['openrouter'] = {'apiKey': '$OR_KEY'}
+with open('$MODELS_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+" 2>/dev/null && ok "OpenRouter key added as fallback provider" || warn "Couldn't merge — add OpenRouter key manually"
+      else
+        cat > "$MODELS_FILE" << MODEOF
+{
+  "providers": {
+    "openrouter": {
+      "apiKey": "$OR_KEY"
+    }
+  }
+}
+MODEOF
+        ok "OpenRouter key saved"
+      fi
+    fi
+    PROVIDER_SET=true
+
+    # Verify the key was saved correctly
+    if grep -q "sk-or-v1-" "$MODELS_FILE" 2>/dev/null; then
+      ok "Verified: OpenRouter key prefix intact"
+    elif grep -q "$OR_KEY" "$MODELS_FILE" 2>/dev/null; then
+      ok "Key saved (verifying...)"
+    else
+      warn "Key may not have saved correctly — check $MODELS_FILE"
+    fi
   fi
   echo ""
 fi
 
-prompt "Configure AWS CLI now? (y/n) — needed for managing Lightsail/EC2 instances"
-read -r ADD_AWS
-echo ""
-
-if [[ "$ADD_AWS" =~ ^[Yy] ]]; then
-  echo -e "  You'll need your AWS Access Key ID and Secret Access Key."
-  echo -e "  Get them from: ${CYAN}https://console.aws.amazon.com/iam/home#/security_credentials${NC}"
-  echo -e "  (IAM → Users → your user → Security credentials → Create access key)"
-  echo ""
-  aws configure
-  echo ""
-  if aws sts get-caller-identity &>/dev/null; then
-    ok "AWS CLI configured — $(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null)"
-  else
-    warn "AWS credentials not verified — you can run 'aws configure' later"
-  fi
-  echo ""
+if [[ "$PROVIDER_SET" != "true" ]]; then
+  warn "No API key configured! The assistant won't work until you add one."
+  warn "Run: openclaw models auth add"
 fi
 
-ADD_KEY="$ADD_ANTHROPIC"
-
 # ============================================================
-header "Step 4: Creating Workspace"
+header "Step 5: Creating Workspace"
 # ============================================================
 
-# Initialize OpenClaw if not already done
-if [ ! -d "$HOME/.openclaw" ]; then
-  log "Initializing OpenClaw..."
-  openclaw status 2>/dev/null || true
-fi
-
-# Create workspace directories
+# Initialize OpenClaw directory structure
 mkdir -p "$WORKSPACE/memory"
+mkdir -p "$AGENT_DIR"
 ok "Created workspace directories"
 
 # ============================================================
@@ -262,31 +316,17 @@ SOULEOF
 fi
 
 # ============================================================
-# Write AGENTS.md
+# Write AGENTS.md, HEARTBEAT.md, MEMORY.md, TOOLS.md
 # ============================================================
-log "Writing AGENTS.md..."
-curl -sSL "$TEMPLATES_BASE/AGENTS.md" > "$WORKSPACE/AGENTS.md" 2>/dev/null
-if [ $? -eq 0 ] && [ -s "$WORKSPACE/AGENTS.md" ]; then
-  ok "AGENTS.md"
-else
-  warn "Couldn't download AGENTS.md template"
-fi
+log "Writing workspace files..."
 
-# ============================================================
-# Write HEARTBEAT.md
-# ============================================================
-log "Writing HEARTBEAT.md..."
-curl -sSL "$TEMPLATES_BASE/HEARTBEAT.md" > "$WORKSPACE/HEARTBEAT.md" 2>/dev/null
-if [ $? -eq 0 ] && [ -s "$WORKSPACE/HEARTBEAT.md" ]; then
-  ok "HEARTBEAT.md"
-else
-  warn "Couldn't download HEARTBEAT.md template"
-fi
+curl -sSL "$TEMPLATES_BASE/AGENTS.md" > "$WORKSPACE/AGENTS.md" 2>/dev/null \
+  && ok "AGENTS.md" || warn "Couldn't download AGENTS.md template"
 
-# ============================================================
-# Write MEMORY.md
-# ============================================================
-log "Writing MEMORY.md..."
+curl -sSL "$TEMPLATES_BASE/HEARTBEAT.md" > "$WORKSPACE/HEARTBEAT.md" 2>/dev/null \
+  && ok "HEARTBEAT.md" || warn "Couldn't download HEARTBEAT.md template"
+
+# MEMORY.md
 DATE=$(date +%Y-%m-%d)
 cat > "$WORKSPACE/MEMORY.md" << MEMEOF
 # MEMORY.md — Long-Term Memory
@@ -311,11 +351,29 @@ cat > "$WORKSPACE/MEMORY.md" << MEMEOF
 MEMEOF
 ok "MEMORY.md"
 
+# TOOLS.md
+cat > "$WORKSPACE/TOOLS.md" << 'TOOLSEOF'
+# TOOLS.md — Local Notes
+
+Skills define _how_ tools work. This file is for _your_ specifics.
+
+## What Goes Here
+- Camera names and locations
+- SSH hosts and aliases
+- Preferred voices for TTS
+- Device nicknames
+- Anything environment-specific
+
+---
+Add whatever helps you do your job. This is your cheat sheet.
+TOOLSEOF
+ok "TOOLS.md"
+
 # ============================================================
 # Write Carpe Data company knowledge (if applicable)
 # ============================================================
 if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
-  header "Step 5: Loading Carpe Data Knowledge Base"
+  header "Step 6: Loading Carpe Data Knowledge Base"
 
   log "Downloading COMPANY.md..."
   curl -sSL "$TEMPLATES_BASE/COMPANY.md" > "$WORKSPACE/COMPANY.md" 2>/dev/null \
@@ -344,68 +402,59 @@ if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
 
   log "Downloading AWS CLI reference..."
   curl -sSL "$TEMPLATES_BASE/memory/aws-commands.md" > "$WORKSPACE/memory/aws-commands.md" 2>/dev/null \
-    && ok "memory/aws-commands.md — Lightsail, EC2, S3, SSM commands" \
+    && ok "memory/aws-commands.md — EC2, S3, SSM commands" \
     || warn "Failed to download aws-commands.md"
 else
-  header "Step 5: Skipping Company Knowledge (not Carpe)"
+  header "Step 6: Skipping Company Knowledge (not Carpe)"
   log "No company-specific knowledge to load."
 fi
 
 # ============================================================
-header "Step 6: OpenClaw Configuration"
+header "Step 7: OpenClaw Configuration"
 # ============================================================
 
-log "Writing openclaw.json..."
+log "Configuring OpenClaw via CLI..."
 
-# Create config directory if needed
-mkdir -p "$(dirname "$CONFIG")"
+# Set model
+openclaw config set agents.defaults.model "{\"primary\":\"$MODEL_ID\"}" 2>/dev/null \
+  && ok "Model: $MODEL_NAME" \
+  || warn "Couldn't set model via CLI — may need manual config"
 
-# Only write config if it doesn't exist or is default
-if [ ! -f "$CONFIG" ] || [ "$(wc -c < "$CONFIG")" -lt 50 ]; then
-  cat > "$CONFIG" << CONFEOF
-{
-  "model": {
-    "primary": "anthropic/claude-opus-4-6",
-    "fallbacks": [
-      "openrouter/anthropic/claude-sonnet-4.6",
-      "openrouter/openai/gpt-5.2"
-    ]
-  },
-  "timezone": "$TIMEZONE",
-  "channels": {
-    "whatsapp": {
-      "enabled": true,
-      "dmPolicy": "allowlist",
-      "allowFrom": ["$PHONE"],
-      "groupPolicy": "deny"
-    }
-  },
-  "gateway": {
-    "controlUi": {
-      "allowedOrigins": ["*"]
-    }
-  },
-  "heartbeat": {
-    "enabled": true,
-    "intervalMinutes": 30
-  }
-}
-CONFEOF
-  ok "openclaw.json (Claude primary, OpenRouter fallbacks, WhatsApp for $PHONE)"
-else
-  warn "openclaw.json already exists — not overwriting"
-  log "You may need to manually add WhatsApp config for $PHONE"
+# Set gateway for remote access
+openclaw config set gateway.bind lan 2>/dev/null && ok "Gateway: LAN access enabled" || true
+openclaw config set gateway.controlUi.allowedOrigins '["*"]' 2>/dev/null && ok "Control UI: open" || true
+
+# Set WhatsApp config
+if [[ -n "$PHONE" ]]; then
+  openclaw config set channels.whatsapp.enabled true 2>/dev/null || true
+  openclaw config set channels.whatsapp.dmPolicy allowlist 2>/dev/null || true
+  openclaw config set channels.whatsapp.allowFrom "[\"$PHONE\"]" 2>/dev/null || true
+  openclaw config set channels.whatsapp.groupPolicy deny 2>/dev/null || true
+  ok "WhatsApp: configured for $PHONE"
 fi
 
+# Set heartbeat
+openclaw config set heartbeat.enabled true 2>/dev/null || true
+openclaw config set heartbeat.intervalMinutes 30 2>/dev/null || true
+ok "Heartbeat: every 30 minutes"
+
 # ============================================================
-header "Step 7: Start OpenClaw"
+header "Step 8: Start OpenClaw"
 # ============================================================
 
 log "Starting gateway..."
 openclaw gateway start 2>/dev/null && ok "Gateway started" || warn "Gateway may already be running — try: openclaw gateway restart"
 
+# Quick verification
+sleep 2
+if openclaw status 2>/dev/null | grep -qi "running\|online"; then
+  ok "Gateway is running"
+else
+  warn "Gateway status unclear — check: openclaw status"
+fi
+
 # ============================================================
-header "Step 8: Link WhatsApp"
+header "Step 9: Link WhatsApp"
 # ============================================================
 
 prompt "Ready to link WhatsApp? The user needs their phone handy. (y/n)"
@@ -421,9 +470,9 @@ if [[ "$LINK_WA" =~ ^[Yy] ]]; then
   echo ""
   echo -e "${YELLOW}QR code expires in ~60 seconds. Ready? Press Enter.${NC}"
   read -r
-  openclaw whatsapp link
+  openclaw whatsapp qr 2>/dev/null || openclaw whatsapp link 2>/dev/null || warn "WhatsApp linking command not found — check: openclaw whatsapp --help"
 else
-  log "Skipping WhatsApp link. Run later: openclaw whatsapp link"
+  log "Skipping WhatsApp link. Run later with: openclaw whatsapp qr"
 fi
 
 # ============================================================
@@ -437,7 +486,7 @@ echo -e "  ${BOLD}Person:${NC}      $FULL_NAME ($FIRST_NAME)"
 echo -e "  ${BOLD}Email:${NC}       $EMAIL"
 echo -e "  ${BOLD}Phone:${NC}       $PHONE"
 echo -e "  ${BOLD}Timezone:${NC}    $TIMEZONE"
-echo -e "  ${BOLD}Model:${NC}       Claude Opus 4.6 (primary) + OpenRouter fallbacks"
+echo -e "  ${BOLD}Model:${NC}       $MODEL_NAME"
 
 if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
   echo -e "  ${BOLD}Company:${NC}     Carpe Data"
@@ -451,6 +500,7 @@ echo -e "  $WORKSPACE/SOUL.md         — Personality & rules"
 echo -e "  $WORKSPACE/USER.md         — User info"
 echo -e "  $WORKSPACE/AGENTS.md       — Workspace conventions"
 echo -e "  $WORKSPACE/MEMORY.md       — Long-term memory"
+echo -e "  $WORKSPACE/TOOLS.md        — Local tool notes"
 echo -e "  $WORKSPACE/HEARTBEAT.md    — Periodic check config"
 if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
   echo -e "  $WORKSPACE/COMPANY.md      — Carpe Data knowledge"
@@ -458,16 +508,18 @@ if [[ "$IS_CARPE" =~ ^[Yy] ]]; then
 fi
 
 echo ""
-echo -e "${BOLD}What's left to do manually:${NC}"
+echo -e "${BOLD}What's left to do:${NC}"
 if [[ ! "$LINK_WA" =~ ^[Yy] ]]; then
-  echo -e "  • Link WhatsApp: ${CYAN}openclaw whatsapp link${NC}"
+  echo -e "  • Link WhatsApp: ${CYAN}openclaw whatsapp qr${NC}"
 fi
-if [[ ! "$ADD_KEY" =~ ^[Yy] ]]; then
-  echo -e "  • Add API key: ${CYAN}openclaw auth add anthropic${NC}"
+if [[ "$PROVIDER_SET" != "true" ]]; then
+  echo -e "  • Add API key: ${CYAN}openclaw models auth add${NC}"
 fi
+echo -e "  • Set gateway token: ${CYAN}openclaw config set gateway.auth.token 'your-secure-token'${NC}"
 echo -e "  • Connect Google: ${CYAN}gog auth add $EMAIL --services all --manual${NC}"
-echo -e "    (See the setup guide for full Google OAuth instructions)"
-echo -e "  • Test it: Send a WhatsApp message — \"Hello! What can you do?\""
+echo -e "  • Test via interactive chat: ${CYAN}openclaw tui${NC}"
+echo -e "  • Test via WhatsApp: Send a message — \"Hello! What can you do?\""
 echo ""
+echo -e "  Control UI: ${CYAN}http://<your-ip>:18789${NC}"
 echo -e "  Full guide: ${CYAN}https://docs.google.com/document/d/1NnazvWkDrvt7v44m1KND81yhRePxnWD-14ap0MD-teQ${NC}"
 echo ""

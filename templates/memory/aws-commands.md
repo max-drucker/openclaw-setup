@@ -1,125 +1,9 @@
 # AWS CLI — Quick Reference for OpenClaw Infrastructure
 
-> Common commands for managing Lightsail instances, EC2, and AWS resources.
+> Common commands for managing EC2 instances and AWS resources.
 > All commands assume `aws configure` has been run.
 
-## Lightsail — Instance Management
-
-### List all instances
-```bash
-aws lightsail get-instances --query 'instances[].{Name:name,State:state.name,IP:publicIpAddress,Plan:bundleId}' --output table
-```
-
-### Create a new instance
-```bash
-aws lightsail create-instances \
-  --instance-names "username-openclaw" \
-  --availability-zone us-west-2a \
-  --blueprint-id ubuntu_22_04 \
-  --bundle-id medium_3_0 \
-  --tags key=project,value=openclaw key=owner,value=USERNAME
-```
-
-Bundle IDs:
-- `nano_3_0` — 512MB / 2 vCPU / 20GB — $3.50/mo
-- `micro_3_0` — 1GB / 2 vCPU / 40GB — $7/mo
-- `small_3_0` — 2GB / 2 vCPU / 60GB — $12/mo (recommended)
-- `medium_3_0` — 4GB / 2 vCPU / 80GB — $20/mo
-- `large_3_0` — 8GB / 2 vCPU / 160GB — $40/mo
-
-### Start/Stop/Reboot an instance
-```bash
-aws lightsail start-instance --instance-name "username-openclaw"
-aws lightsail stop-instance --instance-name "username-openclaw"
-aws lightsail reboot-instance --instance-name "username-openclaw"
-```
-
-### Delete an instance
-```bash
-aws lightsail delete-instance --instance-name "username-openclaw"
-```
-
-### Get instance status
-```bash
-aws lightsail get-instance --instance-name "username-openclaw" \
-  --query 'instance.{Name:name,State:state.name,IP:publicIpAddress,CPU:hardware.cpuCount,RAM:hardware.ramSizeInGb}'
-```
-
-## Lightsail — Static IPs
-
-### Allocate and attach a static IP
-```bash
-aws lightsail allocate-static-ip --static-ip-name "username-openclaw-ip"
-aws lightsail attach-static-ip --static-ip-name "username-openclaw-ip" --instance-name "username-openclaw"
-```
-
-### List static IPs
-```bash
-aws lightsail get-static-ips --query 'staticIps[].{Name:name,IP:ipAddress,Attached:isAttached,Instance:attachedTo}' --output table
-```
-
-## Lightsail — Snapshots & Backups
-
-### Create a manual snapshot
-```bash
-aws lightsail create-instance-snapshot --instance-name "username-openclaw" --instance-snapshot-name "username-openclaw-$(date +%Y%m%d)"
-```
-
-### List snapshots
-```bash
-aws lightsail get-instance-snapshots --query 'instanceSnapshots[].{Name:name,State:state,Created:createdAt,Source:fromInstanceName}' --output table
-```
-
-### Create instance from snapshot (disaster recovery)
-```bash
-aws lightsail create-instances-from-snapshot \
-  --instance-names "username-openclaw-restored" \
-  --availability-zone us-west-2a \
-  --instance-snapshot-name "username-openclaw-20260307" \
-  --bundle-id small_3_0
-```
-
-### Enable automatic snapshots
-```bash
-aws lightsail enable-add-on --resource-name "username-openclaw" \
-  --add-on-request addOnType=AutoSnapshot,autoSnapshotAddOnRequest={snapshotTimeOfDay=06:00}
-```
-
-## Lightsail — Firewall
-
-### Open a port
-```bash
-aws lightsail open-instance-public-ports --instance-name "username-openclaw" \
-  --port-info fromPort=3000,toPort=3000,protocol=tcp
-```
-
-### Close a port
-```bash
-aws lightsail close-instance-public-ports --instance-name "username-openclaw" \
-  --port-info fromPort=3000,toPort=3000,protocol=tcp
-```
-
-### List open ports
-```bash
-aws lightsail get-instance --instance-name "username-openclaw" \
-  --query 'instance.networking.ports[].{From:fromPort,To:toPort,Protocol:protocol,Access:accessType}'
-```
-
-## Lightsail — SSH Key Management
-
-### Create a key pair
-```bash
-aws lightsail create-key-pair --key-pair-name "openclaw-deploy" \
-  --query 'privateKeyBase64' --output text | base64 -d > ~/openclaw-deploy.pem
-chmod 600 ~/openclaw-deploy.pem
-```
-
-### List key pairs
-```bash
-aws lightsail get-key-pairs --query 'keyPairs[].{Name:name,Fingerprint:fingerprint}' --output table
-```
-
-## EC2 — For Enterprise/Heavy Workloads
+## EC2 — Instance Management
 
 ### List running instances
 ```bash
@@ -127,7 +11,7 @@ aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" \
   --query 'Reservations[].Instances[].{ID:InstanceId,Type:InstanceType,IP:PublicIpAddress,Name:Tags[?Key==`Name`]|[0].Value}' --output table
 ```
 
-### Launch an instance
+### Launch an instance (Ubuntu 24.04 LTS)
 ```bash
 aws ec2 run-instances \
   --image-id ami-0c55b159cbfafe1f0 \
@@ -136,14 +20,76 @@ aws ec2 run-instances \
   --security-group-ids sg-XXXXXXXX \
   --subnet-id subnet-XXXXXXXX \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=username-openclaw},{Key=project,Value=openclaw}]' \
+  --user-data 'file://setup.sh' \
   --count 1
 ```
+
+Recommended instance types:
+- `t3.medium` — 4GB / 2 vCPU — ~$30/mo (recommended for most users)
+- `t3.large` — 8GB / 2 vCPU — ~$60/mo (for power users with sub-agents)
+- `t3.small` — 2GB / 1 vCPU — ~$15/mo (chat-only, minimal building)
 
 ### Start/Stop/Terminate
 ```bash
 aws ec2 start-instances --instance-ids i-XXXXXXXXX
 aws ec2 stop-instances --instance-ids i-XXXXXXXXX
 aws ec2 terminate-instances --instance-ids i-XXXXXXXXX
+```
+
+### Get instance status
+```bash
+aws ec2 describe-instances --instance-ids i-XXXXXXXXX \
+  --query 'Reservations[].Instances[].{State:State.Name,IP:PublicIpAddress,Type:InstanceType}'
+```
+
+## EC2 — Security Groups
+
+### Open ports for OpenClaw
+```bash
+# SSH
+aws ec2 authorize-security-group-ingress --group-id sg-XXXXXXXX --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# OpenClaw Control UI
+aws ec2 authorize-security-group-ingress --group-id sg-XXXXXXXX --protocol tcp --port 18789 --cidr 0.0.0.0/0
+```
+
+### List security group rules
+```bash
+aws ec2 describe-security-groups --group-ids sg-XXXXXXXX \
+  --query 'SecurityGroups[].IpPermissions[].{Port:FromPort,Protocol:IpProtocol,CIDR:IpRanges[].CidrIp}'
+```
+
+## EC2 — Key Pairs
+
+### Create a key pair
+```bash
+aws ec2 create-key-pair --key-name openclaw-deploy --query 'KeyMaterial' --output text > ~/openclaw-deploy.pem
+chmod 600 ~/openclaw-deploy.pem
+```
+
+### List key pairs
+```bash
+aws ec2 describe-key-pairs --query 'KeyPairs[].{Name:KeyName,ID:KeyPairId}' --output table
+```
+
+## EC2 — Elastic IPs
+
+### Allocate and associate
+```bash
+aws ec2 allocate-address --domain vpc
+aws ec2 associate-address --instance-id i-XXXXXXXXX --allocation-id eipalloc-XXXXXXXX
+```
+
+## EC2 — AMI Snapshots & Backups
+
+### Create an AMI (full backup)
+```bash
+aws ec2 create-image --instance-id i-XXXXXXXXX --name "openclaw-backup-$(date +%Y%m%d)" --no-reboot
+```
+
+### List AMIs
+```bash
+aws ec2 describe-images --owners self --query 'Images[].{Name:Name,ID:ImageId,Created:CreationDate}' --output table
 ```
 
 ## S3 — File Storage & Backups
@@ -159,7 +105,7 @@ aws s3 cp /path/to/file s3://carpe-openclaw-backups/
 aws s3 cp s3://carpe-openclaw-backups/file /path/to/local/
 ```
 
-### Sync a directory
+### Sync a workspace backup
 ```bash
 aws s3 sync ~/.openclaw/workspace/ s3://carpe-openclaw-backups/username/ --exclude "node_modules/*"
 ```
@@ -178,18 +124,15 @@ aws ssm send-command \
 
 ### Check all OpenClaw instances at once
 ```bash
-aws lightsail get-instances --query 'instances[?contains(name,`openclaw`)].{Name:name,State:state.name,IP:publicIpAddress}' --output table
+aws ec2 describe-instances \
+  --filters "Name=tag:project,Values=openclaw" "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].{Name:Tags[?Key==`Name`]|[0].Value,State:State.Name,IP:PublicIpAddress}' --output table
 ```
 
-### Get monthly cost estimate
+### Quick SSH to an instance
 ```bash
-aws lightsail get-cost-estimate --resource-name "username-openclaw" --start-time "$(date -d '30 days ago' +%Y-%m-%dT00:00:00Z)" --end-time "$(date +%Y-%m-%dT00:00:00Z)" 2>/dev/null || echo "Use: aws ce get-cost-and-usage for detailed billing"
+ssh -i ~/openclaw-deploy.pem ubuntu@<IP_ADDRESS>
 ```
 
-### Quick health check across all instances
-```bash
-for inst in $(aws lightsail get-instances --query 'instances[?contains(name,`openclaw`)].name' --output text); do
-  state=$(aws lightsail get-instance --instance-name "$inst" --query 'instance.state.name' --output text)
-  echo "$inst: $state"
-done
-```
+### EC2 Instance Connect (no key needed)
+Use the AWS Console: EC2 → Instances → select instance → Connect → EC2 Instance Connect → Connect
