@@ -186,7 +186,7 @@ if [[ "$ADD_OPENROUTER" =~ ^[Yy] ]]; then
 
     if [[ "$PROVIDER_SET" != "true" ]]; then
       # OpenRouter is the only provider — set model prefix and write auth
-      OR_MODEL="openrouter/${MODEL_ID#anthropic/}"
+      OR_MODEL="openrouter/$MODEL_ID"
       cat > "$AUTH_FILE" << AUTHEOF
 {
   "version": 1,
