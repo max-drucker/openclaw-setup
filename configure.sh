@@ -238,12 +238,10 @@ AUTHEOF
     PROVIDER_SET=true
 
     # Verify the key was saved correctly
-    if grep -q "sk-or-v1-" "$MODELS_FILE" 2>/dev/null; then
-      ok "Verified: OpenRouter key prefix intact"
-    elif grep -q "$OR_KEY" "$MODELS_FILE" 2>/dev/null; then
-      ok "Key saved (verifying...)"
+    if grep -q "$OR_KEY" "$AUTH_FILE" 2>/dev/null; then
+      ok "Verified: OpenRouter key saved in auth-profiles.json"
     else
-      warn "Key may not have saved correctly — check $MODELS_FILE"
+      warn "Key may not have saved correctly — check $AUTH_FILE"
     fi
   fi
   echo ""
